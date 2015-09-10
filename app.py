@@ -11,7 +11,37 @@ app = Flask(__name__)
 
 @app.route('/student/<hashed_sid>')
 def student_validate(hashed_sid):
-    return 'You want ' + hashed_sid
+    student = get_student(hashed_sid)
+    if student:
+        return flask.jsonify(**student)
+    else:
+        return Response(status=404, response="User does not exist.")
+
+
+def get_student(hashed_sid):
+    c = get_db().cursor()
+    try:
+        c.execute("SELECT sid, fname, lname, rit_username, issue_number FROM students WHERE sid=?", (hashed_sid,))
+
+        fetched_student = c.fetchone()
+        if fetched_student:
+            hashed_sid = fetched_student[0]
+            fname = fetched_student[1]
+            lname = fetched_student[2]
+            rit_username = fetched_student[3]
+            issue_number = fetched_student[4]
+
+            return {
+                "hashed_sid": fetched_student[0],
+                "fname": fetched_student[1],
+                "lname": fetched_student[2],
+                "rit_username": fetched_student[3],
+                "issue_number": fetched_student[4]
+            }
+        else:
+            return None
+    except Exception as e:
+        return None
 
 
 @app.route("/student", methods=['GET', 'POST'])
@@ -38,7 +68,6 @@ def student_endpoint():
         return get_all_students_json()
     else:
         return Response(status=501)  # NOT IMPLEMENTED status code
-
 
 
 def get_all_students_json():
@@ -94,11 +123,17 @@ def connect_to_database():
 
 def setup_db():
     # Check if the table/db has been set, if not set it
-    db = get_db()
-    c = db.cursor()
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS students (sid text primary key, fname text, lname text, rit_username text, issue_number integer);")
-    db.commit()
+    if g.get('is_db_created', None):  # FIXME: This does not work
+        print("db already created, not creating again")
+        return
+    else:
+        db = get_db()
+        c = db.cursor()
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS students (sid text primary key, fname text, lname text, rit_username text, issue_number integer);")
+        db.commit()
+        g.is_db_created = True
+        print('db created')
 
 
 if __name__ == "__main__":
